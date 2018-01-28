@@ -1,13 +1,12 @@
 package com.gg.slidinglayout
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.util.AttributeSet
 import android.util.DisplayMetrics
+import android.util.Log
 import android.util.TypedValue
-import android.view.MotionEvent
-import android.view.View
-import android.view.ViewGroup
-import android.view.WindowManager
+import android.view.*
 import android.widget.HorizontalScrollView
 
 /**
@@ -24,11 +23,37 @@ class SlidingLayout @JvmOverloads constructor(
     private lateinit var mContentView: View
     private var mMenuWidth: Int
 
+    private var mIsOpen = false
+
+    private var mIntercept = false
+
+    private val mGestureDetector: GestureDetector by lazy { GestureDetector(context, mGestureListener) }
+
+
     init {
         val array = context.obtainStyledAttributes(attrs, R.styleable.SlidingLayout)
         val rightMargin = array.getDimension(R.styleable.SlidingLayout_menuRightMargin, dip2px(50))
         mMenuWidth = (getScreenWidth(context) - rightMargin).toInt()
         array.recycle()
+    }
+
+    private val mGestureListener: GestureDetector.SimpleOnGestureListener = object : GestureDetector.SimpleOnGestureListener() {
+        override fun onFling(e1: MotionEvent?, e2: MotionEvent?, velocityX: Float, velocityY: Float): Boolean {
+            Log.e("TAG", "velocityX -> " + velocityX)
+
+            return when {
+                !mIsOpen && velocityX > 0 -> {
+                    openMenu()
+                    true
+                }
+                mIsOpen && velocityX < 0 -> {
+                    closeMenu()
+                    true
+                }
+                else -> super.onFling(e1, e2, velocityX, velocityY)
+            }
+
+        }
     }
 
     private fun dip2px(dip: Int): Float = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dip.toFloat(), resources.displayMetrics)
@@ -84,7 +109,25 @@ class SlidingLayout @JvmOverloads constructor(
 
     }
 
+    override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+        mIntercept = false
+        if (mIsOpen) {
+            if (ev.x > mMenuWidth) {
+                closeMenu()
+                mIntercept = true
+                return true
+            }
+        }
+        return super.onInterceptTouchEvent(ev)
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(ev: MotionEvent): Boolean {
+        if (mIntercept)
+            return true
+        if (mGestureDetector.onTouchEvent(ev))
+            return true
+
         if (ev.action == MotionEvent.ACTION_UP) {
             if (scrollX > mMenuWidth / 2) {
                 closeMenu()
@@ -99,10 +142,12 @@ class SlidingLayout @JvmOverloads constructor(
 
     private fun closeMenu() {
         smoothScrollTo(mMenuWidth, 0)
+        mIsOpen = false
     }
 
     private fun openMenu() {
         smoothScrollTo(0, 0)
+        mIsOpen = true
     }
 
 
